@@ -9,11 +9,13 @@ interface SimulationData {
 }
 
 export default function Home() {
-  const [tickers, setTickers] = useState<string[]>([]);
+  const [allTickers, setAllTickers] = useState<string[]>([]);
+  const [filteredTickers, setFilteredTickers] = useState<string[]>([]);
   const [selectedTickers, setSelectedTickers] = useState<string[]>([
     "SPY",
     "QQQ",
   ]);
+  const [searchTerm, setSearchTerm] = useState("");
   const [startDate, setStartDate] = useState("1990-01-01");
   const [endDate, setEndDate] = useState(
     new Date().toISOString().split("T")[0]
@@ -24,7 +26,6 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // 백엔드에서 사용 가능한 티커 목록을 가져옵니다.
     const fetchTickers = async () => {
       try {
         const response = await fetch("http://localhost:5001/api/tickers");
@@ -32,7 +33,7 @@ export default function Home() {
           throw new Error("Failed to fetch tickers");
         }
         const data = await response.json();
-        setTickers(data);
+        setAllTickers(data);
       } catch (err) {
         setError(
           err instanceof Error ? err.message : "An unknown error occurred"
@@ -42,15 +43,23 @@ export default function Home() {
     fetchTickers();
   }, []);
 
-  const handleTickerChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const { options } = event.target;
-    const value: string[] = [];
-    for (let i = 0, l = options.length; i < l; i++) {
-      if (options[i].selected) {
-        value.push(options[i].value);
-      }
+  useEffect(() => {
+    const filtered = allTickers.filter(
+      (ticker) =>
+        ticker.toLowerCase().includes(searchTerm.toLowerCase()) &&
+        !selectedTickers.includes(ticker)
+    );
+    setFilteredTickers(filtered);
+  }, [searchTerm, allTickers, selectedTickers]);
+
+  const handleAddTicker = (ticker: string) => {
+    if (!selectedTickers.includes(ticker)) {
+      setSelectedTickers([...selectedTickers, ticker]);
     }
-    setSelectedTickers(value);
+  };
+
+  const handleRemoveTicker = (ticker: string) => {
+    setSelectedTickers(selectedTickers.filter((t: string) => t !== ticker));
   };
 
   const runSimulation = async () => {
@@ -79,7 +88,6 @@ export default function Home() {
 
       const data = await response.json();
 
-      // 애니메이션 효과를 위해 데이터를 점진적으로 표시
       let currentIndex = 0;
       const interval = setInterval(() => {
         if (currentIndex < data.length) {
@@ -89,7 +97,7 @@ export default function Home() {
           clearInterval(interval);
           setLoading(false);
         }
-      }, 10); // 10ms 간격으로 데이터 포인트 추가
+      }, 10);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "An unknown error occurred"
@@ -105,72 +113,105 @@ export default function Home() {
           Investment Growth Simulation
         </h1>
 
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8 p-4 bg-gray-800 rounded-lg">
-          <div className="flex flex-col">
-            <label htmlFor="tickers" className="mb-2 text-sm font-medium">
-              Tickers (multi-select)
-            </label>
-            <select
-              id="tickers"
-              multiple
-              value={selectedTickers}
-              onChange={handleTickerChange}
-              className="p-2 rounded bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 h-24"
-            >
-              {tickers.map((ticker) => (
-                <option key={ticker} value={ticker}>
-                  {ticker}
-                </option>
-              ))}
-            </select>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8 p-4 bg-gray-800 rounded-lg">
+          {/* Ticker Selection */}
+          <div className="flex flex-col col-span-1 md:col-span-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="search" className="mb-2 text-sm font-medium">
+                  Available Tickers
+                </label>
+                <input
+                  type="text"
+                  id="search"
+                  placeholder="Search..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="p-2 rounded bg-gray-700 border border-gray-600 mb-2 w-full"
+                />
+                <div className="bg-gray-900 p-2 rounded border border-gray-600 h-48 overflow-y-auto">
+                  {filteredTickers.map((ticker) => (
+                    <div
+                      key={ticker}
+                      onDoubleClick={() => handleAddTicker(ticker)}
+                      className="p-1 cursor-pointer hover:bg-gray-700 rounded"
+                    >
+                      {ticker}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="mb-2 text-sm font-medium">
+                  Selected Tickers
+                </label>
+                <div className="bg-gray-900 p-2 rounded border border-gray-600 h-48 overflow-y-auto mt-[44px]">
+                  {selectedTickers.map((ticker) => (
+                    <div
+                      key={ticker}
+                      onDoubleClick={() => handleRemoveTicker(ticker)}
+                      className="p-1 cursor-pointer hover:bg-gray-700 rounded"
+                    >
+                      {ticker}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="flex flex-col">
-            <label htmlFor="startDate" className="mb-2 text-sm font-medium">
-              Start Date
-            </label>
-            <input
-              type="date"
-              id="startDate"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="p-2 rounded bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div className="flex flex-col">
-            <label htmlFor="endDate" className="mb-2 text-sm font-medium">
-              End Date
-            </label>
-            <input
-              type="date"
-              id="endDate"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="p-2 rounded bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div className="flex flex-col">
-            <label
-              htmlFor="monthlyInvestment"
-              className="mb-2 text-sm font-medium"
-            >
-              Monthly Investment ($)
-            </label>
-            <input
-              type="number"
-              id="monthlyInvestment"
-              value={monthlyInvestment}
-              onChange={(e) => setMonthlyInvestment(e.target.value)}
-              className="p-2 rounded bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div className="flex items-end">
-            <button
-              onClick={runSimulation}
-              disabled={loading || selectedTickers.length === 0}
-              className="w-full p-2 bg-blue-600 rounded hover:bg-blue-700 disabled:bg-gray-500 transition-colors"
-            >
-              {loading ? "Simulating..." : "Run Simulation"}
-            </button>
+
+          {/* Controls */}
+          <div className="flex flex-col col-span-1 justify-between">
+            <div>
+              <div className="flex flex-col mb-4">
+                <label htmlFor="startDate" className="mb-2 text-sm font-medium">
+                  Start Date
+                </label>
+                <input
+                  type="date"
+                  id="startDate"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="p-2 rounded bg-gray-700 border border-gray-600"
+                />
+              </div>
+              <div className="flex flex-col mb-4">
+                <label htmlFor="endDate" className="mb-2 text-sm font-medium">
+                  End Date
+                </label>
+                <input
+                  type="date"
+                  id="endDate"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="p-2 rounded bg-gray-700 border border-gray-600"
+                />
+              </div>
+              <div className="flex flex-col">
+                <label
+                  htmlFor="monthlyInvestment"
+                  className="mb-2 text-sm font-medium"
+                >
+                  Monthly Investment ($)
+                </label>
+                <input
+                  type="number"
+                  id="monthlyInvestment"
+                  value={monthlyInvestment}
+                  onChange={(e) => setMonthlyInvestment(e.target.value)}
+                  className="p-2 rounded bg-gray-700 border border-gray-600"
+                />
+              </div>
+            </div>
+            <div className="flex items-end h-full mt-4">
+              <button
+                onClick={runSimulation}
+                disabled={loading || selectedTickers.length === 0}
+                className="w-full p-2 bg-blue-600 rounded hover:bg-blue-700 disabled:bg-gray-500 transition-colors"
+              >
+                {loading ? "Simulating..." : "Run Simulation"}
+              </button>
+            </div>
           </div>
         </div>
 
